@@ -1,0 +1,319 @@
+//Copyright 2016-2017 OSIsoft, LLC
+//
+//Licensed under the Apache License, Version 2.0 (the "License");
+//you may not use this file except in compliance with the License.
+//You may obtain a copy of the License at
+//
+//<http://www.apache.org/licenses/LICENSE-2.0>
+//
+//Unless required by applicable law or agreed to in writing, software
+//distributed under the License is distributed on an "AS IS" BASIS,
+//WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//See the License for the specific language governing permissions and
+//limitations under the License.
+
+// ************************************************************************
+
+// Note: this code was built against the OSIsoft Relay Beta version 1.1.177.2627  and OMF v1.0
+
+// Specify the address of the destination endpoint
+local target_url = "http://59051njsjwss.cloudapp.net:8118/ingress/messages";
+
+// This name will be automatically populated later; this is the name
+// of the PI AF Element that will be created, and it'll be included in the names
+// of PI Points that get created as well
+local device_name = "";
+
+// Specify the producer token; this will be the parent AF element beneath which the new AF element will appear,
+// and it will be part of the prefix of all PI Points that are created by this script
+local producer_token = "OMF";
+
+// Specify a device location (optional); this will be added as a static string attribute to the AF Element that is created
+local device_location = "IoT Test Lab";
+
+// Specify a device type (optional); this will be added as a static string attribute to the AF Element that is created
+local device_type = "Electric Imp";
+
+//This name will be automatically populated later;
+//This will also end up becoming part of the PI Points names;
+local data_values_container_name = "";
+
+// ************************************************************************
+// Below is where you can initialize any global variables that are needed by your application;
+// certain sensors, for example, will require global interface or sensor variables
+
+// The following function is where you can insert specific initialization code to set up
+// sensors for a particular IoT module or platform
+function initialize_sensors() {
+	server.log("--- Sensors initializing...");
+	try {
+		//For a Raspberry Pi, for example, to set up pins 4 and 5, you would add 
+		//GPIO.setmode(GPIO.BCM)
+		//GPIO.setup(4, GPIO.IN)
+		//GPIO.setup(5, GPIO.IN)
+		server.log("--- Sensors initialized!");	
+	} catch (e) {
+		// Log any error, if it occurs
+		server.log((date()) + " An error has occurred when initializing sensors: " + (e));
+	}
+}
+
+// ************************************************************************
+// The following function you can customize to allow this script to send along any
+// number of different data values, as long as the values that you send here match
+// up with the values defined in the "DataValuesType" OMF message type (see the next section)
+// In this example, dataFromImp is an array defined in the device code
+
+function create_data_values_container_message(target_container_id, dataFromImp) {
+	// Get the current timestamp
+    local d = date()
+    local timestamp = format("%04d-%02d-%02dT%02d:%02d:%02dZ", d.year, d.month+1, d.day, d.hour, d.min, d.sec);
+    // Assemble a JSON object containing the Id and any data values
+    local data_values_JSON = [
+        {
+            "containerid": target_container_id,
+            "values": [
+                {
+                    "Time": timestamp,
+					//"make sure to know the right types of the values;
+					//if you are unsure, use conver functions to the defined types;
+					"Device ID": dataFromImp[0].tostring(),
+                    "Software Version": dataFromImp[1].tostring(),
+                    "Boot ROM Version": dataFromImp[2].tostring(),
+                    "Environment": dataFromImp[3],
+                    "Network SSID": dataFromImp[4].tostring(),
+                    "MAC Address": dataFromImp[5].tostring(),
+                    "Wi-Fi RSSI": dataFromImp[6],
+                    "Power Save Enabled": dataFromImp[7].tostring(),
+                    "Memory Free": dataFromImp[8],
+                    "Light Sensor Reading": dataFromImp[9],
+                    "Hardware Voltage": dataFromImp[10],
+                    "Temperature": dataFromImp[11],
+                    "Humidity": dataFromImp[12],
+                    "Pressure": dataFromImp[13],
+                    "Acceleration X": dataFromImp[14],
+                    "Acceleration Y": dataFromImp[15],
+                    "Acceleration Z": dataFromImp[16]
+                }
+            ]
+        }
+    ];
+    return data_values_JSON;
+	}
+// ************************************************************************
+
+// Define a helper function to allow easily sending web request messages;
+// this function can later be customized to allow you to port this script to other languages.
+// All it does is take in a data object and a message type, and it sends an HTTPS
+// request to the target OMF endpoint
+
+function sendOMFMessageToEndPoint(message_type, OMF_data) {
+        try { 
+                // Assemble headers that contain the producer token and message type
+                local msg_header = {"producertoken": producer_token, "messagetype": message_type, "action": "create", "messageformat": "JSON", "omfversion": "1.0"};
+                // Send the request, and collect the response
+                local request = http.post(target_url, msg_header, http.jsonencode(OMF_data));
+                local response = request.sendsync();				
+                // Print a debug message, if desired
+                server.log("Response from relay from the '" + message_type + "' message: " + response.body + "headers: " + response.headers + "Status: " + response.statuscode);
+        } catch (e) {
+                // Log any error, if it occurs
+                server.log((date()) + " An error occurred during web request: " + (e));	
+		}				
+}
+
+// ************************************************************************
+
+function sendInitialOMFMessages(ImpDeviceId) {
+    // Update the global variable that contains the unique device ID
+    device_name = ImpDeviceId;
+    
+    // Update the types and container names
+    local data_values_type_name        = device_name + "_" + "data_values_type";
+	data_values_container_name   = device_name + "_" + "data_values_container";
+	//this will also end up becoming part of the Element template name;
+	local assets_message_type_name = "Type" + "_ElectricImp";
+    
+    // Create a JSON packet to define the the message types that will be used
+       
+        // ************************************************************************
+        //OMF messages fall into three categories: Type, Container, and Data messages. 
+		//Within each category, three types of actions can be specified: Create, Update, and Delete.
+		//Each message bulks individual JSON objects into a JSON array. 
+		//Within a given array, all objects must be of the same message type: Type, Container, or Data. 
+			
+	local types = [	
+        {
+			//This will be dynamic (pi points) attributes in the element template
+            "id": data_values_type_name,
+            "type": "object",
+			"classification": "dynamic",
+            "properties": {
+                "Time": {
+                    "format": "date-time",
+                    "type": "string",
+                    "isindex": true
+                },
+                "Device ID": {
+                    "type": "string"
+                },
+                "Software Version": {
+                    "type": "string"
+                },
+                "Boot ROM Version": {
+                    "type": "string"
+                },
+                "Environment": {
+                    "type": "number"
+                },
+                "Network SSID": {
+                    "type": "string"
+                },
+                "MAC Address": {
+                    "type": "string"
+                },
+                "Wi-Fi RSSI": {
+                    "type": "number"
+                },
+                "Power Save Enabled": {
+                    "type": "string"
+                },
+                "Memory Free": {
+                    "type": "number"
+                },
+                "Light Sensor Reading": {
+                    "type": "number"
+                },
+                "Hardware Voltage": {
+                    "type": "number"
+                },
+                "Temperature": {
+                    "type": "number"
+                },
+                "Humidity": {
+                    "type": "number"
+                },
+                "Pressure": {
+                    "type": "number"
+                },
+                "Acceleration X": {
+                    "type": "number"
+                },
+                "Acceleration Y": {
+                    "type": "number"
+                },
+                "Acceleration Z": {
+                    "type": "number"
+                }
+            }
+        },
+        {
+			//This will be static attributes in the element template
+            "id": assets_message_type_name,
+            "type": "object",
+            "classification": "static",
+            "properties": {
+                "Name": {
+                    "type": "string",
+                    "isindex": true
+                },
+                "Device Type": {
+                    "type": "string"
+                },
+                "Location": {
+                    "type": "string"
+                },
+                "Data Ingress Method": {
+                    "type": "string"
+                }
+                // For example, to add a number-type static attribute for the device model, you would add
+                //"Model": {
+                //   "type": "number"
+                //}
+            }
+        }
+        
+    ];
+    
+    // Create a JSON packet containing the data container for the values defined indata_values_type_name;
+    // in this case, we're auto-populating the Device Type, but you can manually hard-code in values if you wish;
+    
+	local containers = [
+		{
+        "id": data_values_container_name,
+		"typeid": data_values_type_name
+		}
+	];	
+	
+	// Here is where you can specify values for the static PI AF attributes;
+	
+	local assets = [
+        {
+            "typeid": assets_message_type_name,
+            "values": [
+                {
+                    "Name": device_name,
+                    "Device Type": device_type,
+                    "Location": device_location,
+                    "Data Ingress Method": "OMFv1.0"
+                }
+            ]
+        }
+    ];
+    
+    // Create a JSON packet containing the LINKS to be made, which will both position the new PI AF Element
+    // so it will show up in AF, and will associate the PI Points that will be created with that Element
+    // A Link is a pre-defined type with the typeid __Link, therefore we did not define it in the types above
+		
+    local links = [{
+            "typeid": "__Link",
+            "values": [{
+                    "source": {
+							"typeid": assets_message_type_name,
+							"index": "_ROOT"
+					},
+					"target": {
+							"typeid": assets_message_type_name,
+							"index": device_name
+					
+					}
+			},{
+					"source": {
+							"typeid": assets_message_type_name,
+							"index": device_name
+					},
+					"target": {
+							"containerid": data_values_container_name
+					}          
+            }]
+		}];
+    
+    // Send the messages to create the types, containers, static data and links, which will finish making the AF element and will set up links for PI Points;
+	sendOMFMessageToEndPoint("Type", types);
+    sendOMFMessageToEndPoint("Container", containers);
+	sendOMFMessageToEndPoint("Data", assets);
+	sendOMFMessageToEndPoint("Data", links);
+    
+    // Initialize sensors prior to sending data (if needed), using the function defined earlier
+    initialize_sensors();
+}
+// ************************************************************************
+
+function sendOMFDataValueMessages(dataFromImp) {
+	// Call the custom function that builds a JSON object that contains new data values; see the beginning of this script
+    local values = create_data_values_container_message(data_values_container_name, dataFromImp);
+    sendOMFMessageToEndPoint("Data", values);
+}
+
+// ************************************************************************
+// Set up a handler to run the init and continuous functions on demand
+
+device.on("performInitTasks", function (device_nameFromImp) {
+    server.log("Server received 'performInitTasks' message from Imp!");
+    server.log("Server received the device name: " + device_nameFromImp);
+    sendInitialOMFMessages(device_nameFromImp);
+});
+
+device.on("sendDataToPISystem", function (dataFromImp) {
+    sendOMFDataValueMessages(dataFromImp);    
+});
