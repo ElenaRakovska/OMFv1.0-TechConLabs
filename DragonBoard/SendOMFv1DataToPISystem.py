@@ -14,7 +14,7 @@
 
 # ************************************************************************
 
-# Note: this code was built against the OSIsoft Relay Beta version 1.1.177.2627  and OMF v1.0
+# Note: this code was built against the OSIsoft Relay Beta version 1.2.000.0000  and OMF v1.0
 #OMF Specifications http://omf-docs.osisoft.com/en/v1.0/index.html
 
 # Import packages
@@ -33,7 +33,7 @@ device_name = (socket.gethostname())+ ""
 # ************************************************************************
 
 # Specify the address of the destination endpoint
-target_url = "http://59051njsjwss.cloudapp.net:8118/ingress/messages"
+target_url = "http://59051njsjwss.cloudapp.net:8888/ingress/messages"
 
 # Specify the producer token this will be the parent AF element beneath which the new AF element will appear,
 # and it will be part of the prefix of all PI Points that are created by this script
