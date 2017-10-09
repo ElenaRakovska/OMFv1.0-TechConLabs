@@ -17,7 +17,7 @@
 // Note: this code was built against the OSIsoft Relay Beta version 1.2.000.0000  and OMF v1.0
 
 // Specify the address of the destination endpoint
-local target_url = "http://59051njsjwss.cloudapp.net:8888/ingress/messages";
+local target_url = "https://59051njsjwss.cloudapp.net:8881/ingress/messages";
 
 // This name will be automatically populated later; this is the name
 // of the PI AF Element that will be created, and it'll be included in the names

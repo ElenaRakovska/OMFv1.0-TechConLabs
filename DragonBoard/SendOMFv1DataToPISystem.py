@@ -33,7 +33,7 @@ device_name = (socket.gethostname())+ ""
 # ************************************************************************
 
 # Specify the address of the destination endpoint
-target_url = "http://59051njsjwss.cloudapp.net:8888/ingress/messages"
+target_url = "https://59051njsjwss.cloudapp.net:8881/ingress/messages"
 
 # Specify the producer token this will be the parent AF element beneath which the new AF element will appear,
 # and it will be part of the prefix of all PI Points that are created by this script
