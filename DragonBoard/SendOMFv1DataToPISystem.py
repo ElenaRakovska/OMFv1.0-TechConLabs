@@ -326,7 +326,7 @@ if __name__ == '__main__':
             # Gather general information about the device
             platform.machine(),
             platform.platform(),
-            #platform.processor(),
+            platform.processor(),
             str(100 - (linux_metrics.cpu_stat.cpu_percents(sample_duration=1))['idle']),
             str(linux_metrics.disk_stat.disk_busy('mmcblk0', sample_duration=1)),
             str(linux_metrics.mem_stat.mem_stats()[0]),
